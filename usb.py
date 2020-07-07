@@ -12,13 +12,27 @@ def receive(lser, nut):
         item = q.get()
         if item == "stop":
             continue
-        elif item == "poll":
+        elif item == "poll32":
             mutex.acquire()
             dat = lser.read(40960)
             if len(dat) != 0:
                 print("Read %d Bytes from USB"%len(dat))
             mutex.release()
-            q.put("poll")
+            q.put("poll32")
+        elif item == "poll1-16":
+            mutex.acquire()
+            dat = lser.read(40960)
+            if len(dat) != 0:
+                print("Read %d Bytes from USB"%len(dat))
+            mutex.release()
+            q.put("poll1-16")
+        elif item == "poll16-32":
+            mutex.acquire()
+            dat = lser.read(40960)
+            if len(dat) != 0:
+                print("Read %d Bytes from USB"%len(dat))
+            mutex.release()
+            q.put("poll16-32")
         elif item == "quit":
             break
 
@@ -43,13 +57,17 @@ if s == expected_ack:
             mutex.acquire()
             sample1 = bytearray([0xA5, 0x01, 0xE8, 0x03])
             ser.write(sample1)
-            q.put("poll")
+            s = ser.read(4)
+            if s == expected_ack:
+                q.put("poll1-16")
             mutex.release()
         elif cmd == 'r2':
             mutex.acquire()
             sample2 = bytearray([0xA5, 0x02, 0x30, 0x75])
             ser.write(sample2)
-            q.put("poll")
+            s = ser.read(4)
+            if s == expected_ack:
+                q.put("poll16-32")
             mutex.release()
         elif cmd == 'rall':
             mutex.acquire()
@@ -65,13 +83,17 @@ if s == expected_ack:
             mutex.acquire()
             stop = bytearray([0xA5, 0x03, 0x00, 0x00])
             ser.write(stop)
-            q.put("stop")
+            s = ser.read(4)
+            if s == expected_ack:
+                q.put("stop")
             mutex.release()
         elif cmd == 'q':
             mutex.acquire()
             stop = bytearray([0xA5, 0x03, 0x00, 0x00])
             ser.write(stop)
-            q.put("quit")
+            s = ser.read(4)
+            if s == expected_ack:
+                q.put("quit")
             mutex.release()
             break
     rcv.join()
