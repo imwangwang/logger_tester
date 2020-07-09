@@ -2,12 +2,20 @@ import sys
 from threading import Thread, Lock
 import serial
 import binascii
+import struct
 from Queue import Queue
 
+channelNum = 32
 mutex = Lock()
+# 32 channels of 128KB in each channel
+chan_buf = [[0 for j in range(128 * 1024)] for i in range(channelNum)]
+chan_walk = 0
+chan_left = (0, False)
 
 def receive(lser, nut):
     global q
+    global chan_buf
+    global chan_walk
     while True:
         item = q.get()
         if item == "stop":
@@ -17,6 +25,26 @@ def receive(lser, nut):
             dat = lser.read(40960)
             if len(dat) != 0:
                 print("Read %d Bytes from USB"%len(dat))
+            else:
+                continue
+
+            if chan_left[1]:
+                dat.insert(0, chan_left[0])
+                chan_left = (0, False)
+
+            m = 0
+            n = m + 2
+            while n <= len(dat):
+                chan_buf[chan_walk].append(struct.unpack('<H', bytearray(dat[m:n])))
+                chan_buf[chan_walk].pop(0)
+                m = n
+                n = m + 2
+                chan_walk = chan_walk + 1
+                chan_walk = chan_walk % channelNum
+
+            if n > len(dat) :
+                chan_left = (dat[-1], True)
+
             mutex.release()
             q.put("poll32")
         elif item == "poll1-16":
@@ -83,17 +111,13 @@ if s == expected_ack:
             mutex.acquire()
             stop = bytearray([0xA5, 0x03, 0x00, 0x00])
             ser.write(stop)
-            s = ser.read(4)
-            if s == expected_ack:
-                q.put("stop")
+            q.put("stop")
             mutex.release()
         elif cmd == 'q':
             mutex.acquire()
             stop = bytearray([0xA5, 0x03, 0x00, 0x00])
             ser.write(stop)
-            s = ser.read(4)
-            if s == expected_ack:
-                q.put("quit")
+            q.put("quit")
             mutex.release()
             break
     rcv.join()
